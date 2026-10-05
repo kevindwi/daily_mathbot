@@ -1,19 +1,26 @@
 import os
+import time
 
 import requests
 from google import genai
+from google.genai import types
+from google.genai.errors import APIError
 
-# Ambil Environment Variables dari GitHub Secrets
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
+# Daftar model utama dan cadangan jika model utama sibuk (503)
+AVAILABLE_MODELS = [
+    "gemini-3.8-flash",
+    "gemini-3.5-flash",
+    "gemini-3.6-flash",
+    "gemini-3.7-flash",
+]
+
 
 def escape_markdown_v2(text: str) -> str:
-    """
-    Mengamankan karakter khusus untuk Telegram MarkdownV2,
-    tanpa merusak sintaks spoiler ||...|| dan bold *...*
-    """
+    """Mengamankan karakter khusus untuk Telegram MarkdownV2."""
     special_chars = r"\_[]()~`>#+-={}.!"
     for char in special_chars:
         text = text.replace(char, f"\\{char}")
@@ -31,19 +38,40 @@ def buat_soal() -> str:
         "||[Tuliskan kunci jawaban dan langkah singkat di sini]||"
     )
 
-    # Membuka client menggunakan Context Manager sesuai dokumentasi
     with genai.Client(api_key=GEMINI_API_KEY) as client:
-        response = client.models.generate_content(
-            model="gemini-3.8-flash",
-            contents=prompt,
+        config = types.GenerateContentConfig(
+            automatic_function_calling=types.AutomaticFunctionCallingConfig(
+                disable=True
+            )
         )
-        return response.text
+
+        # Mencoba setiap model yang ada di daftar jika terjadi error 503/server busy
+        for model_name in AVAILABLE_MODELS:
+            for attempt in range(2):  # Coba max 2x per model
+                try:
+                    print(f"Mencoba membuat soal dengan model: {model_name}...")
+                    response = client.models.generate_content(
+                        model=model_name,
+                        contents=prompt,
+                        config=config,
+                    )
+                    if response.text:
+                        return response.text
+                except APIError as e:
+                    print(f"Gagal pada {model_name} (Percobaan {attempt + 1}): {e}")
+                    time.sleep(3)  # Tunggu 3 detik sebelum coba lagi
+                except Exception as e:
+                    print(f"Error tidak terduga pada {model_name}: {e}")
+                    break
+
+    raise Exception(
+        "Semua model Gemini sedang tidak tersedia atau mengalami high demand."
+    )
 
 
 def kirim_notifikasi(pesan: str):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
 
-    # Format Telegram menggunakan MarkdownV2 untuk mendukung ||spoiler||
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": escape_markdown_v2(pesan),
@@ -52,7 +80,7 @@ def kirim_notifikasi(pesan: str):
 
     res = requests.post(url, json=payload)
 
-    # Fallback jika ada kesalahan parsing Markdown dari teks AI
+    # Fallback ke plain text jika parsing MarkdownV2 gagal
     if not res.ok:
         payload["parse_mode"] = ""
         payload["text"] = pesan
@@ -62,3 +90,4 @@ def kirim_notifikasi(pesan: str):
 if __name__ == "__main__":
     soal = buat_soal()
     kirim_notifikasi(soal)
+    print("Berhasil membuat dan mengirim soal ke Telegram!")
