@@ -1,6 +1,5 @@
 import json
 import os
-import re
 
 import requests
 from groq import Groq
@@ -13,35 +12,19 @@ TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 SYSTEM_PROMPT = r"""Anda adalah pakar pembuat soal matematika.
 Tugas Anda adalah membuat 1 soal matematika SMA beserta pembahasannya dalam format JSON.
 
-PENTING DAN WAJIB DIPATUHI:
-1. DILARANG HARDCODE TANDA '+' DI ANTARA KATA ATAU DI AWAL/AKHIR BARIS! Gunakan spasi biasa untuk memisahkan kata.
-2. Gunakan tanda '+' HANYA untuk operasi penjumlahan matematika (contoh: x + 2).
-3. Jangan gunakan emoji atau markdown Telegram (*, _) di dalam nilai JSON.
+ATURAN FORMULASI LATEX QUICKLATEX (SANGAT PENTING):
+1. JANGAN gunakan tanda '+' untuk menggantikan spasi. Gunakan spasi biasa.
+2. Gunakan perintah \text{...} HANYA untuk kata/kalimat penjelas.
+3. Untuk soal atau pembahasan berupa poin-poin/persamaan bertingkat, gunakan format lingkungan \begin{align*} ... \end{align*}.
+4. Gunakan \\ untuk ganti baris di dalam align*.
+5. JANGAN gunakan emoji atau karakter Markdown Telegram (*, _, ||) di dalam kode LaTeX.
 
 Contoh Output JSON yang BENAR:
 {
-  "soal_latex": "\\textbf{Soal:}\\\\[1ex]\nDiberikan fungsi $f(x) = x^3 - 6x^2 + 9x + 1$.\n\\begin{enumerate}\n  \\item Tentukan semua nilai $x$ yang memenuhi $f'(x) = 0$.\n  \\item Klasifikasikan masing-masing titik kritis tersebut.\n\\end{enumerate}",
-  "pembahasan_latex": "\\textbf{Pembahasan:}\\\\[1ex]\nTurunan pertama:\n\\begin{align*}\nf'(x) &= 3x^2 - 12x + 9 \\\\[1ex]\n&= 3(x^2 - 4x + 3) \\\\[1ex]\n&= 3(x - 1)(x - 3)\n\\end{align*}\\\\[1ex]\nJadi $f'(x) = 0 \\implies x = 1$ atau $x = 3$."
+  "soal_latex": "\\textbf{Soal:}\\\\[1ex]\nDiberikan fungsi kuadrat $f(x) = ax^2 + bx + c$ dengan akar-akar real $r_1$ dan $r_2$.\nJika $r_1 + r_2 = 5$, $r_1 r_2 = 6$, dan nilai minimum $f(x)$ adalah $-1$,\ntentukan nilai koefisien $a, b,$ dan $c$!",
+  "pembahasan_latex": "\\textbf{Pembahasan:}\\\\[1.5ex]\n\\begin{align*}\nf(x) &= a(x - r_1)(x - r_2) \\\\[1ex]\n&= a[x^2 - (r_1 + r_2)x + r_1 r_2] \\\\[1ex]\n&= a(x^2 - 5x + 6) \\\\[2ex]\n\\text{Sumbu simetri } x_0 &= -\\frac{b}{2a} = \\frac{5}{2} \\\\[1.5ex]\n\\text{Nilai minimum } f\\left(\\frac{5}{2}\\right) &= -1 \\\\[1ex]\na\\left[\\left(\\frac{5}{2}\\right)^2 - 5\\left(\\frac{5}{2}\\right) + 6\\right] &= -1 \\\\[1ex]\na\\left(-\\frac{1}{4}\\right) &= -1 \\implies a = 4 \\\\[2ex]\n\\text{Maka: } b &= -5a = -20 \\\\[1ex]\nc &= 6a = 24 \\\\[2ex]\n\\mathbf{\\text{Jawaban: }} a &= 4,\\; b = -20,\\; c = 24\n\\end{align*}"
 }
 """
-
-
-def clean_latex_string(code: str) -> str:
-    """
-    Membersihkan tanda '+' liar yang sering dihasilkan oleh model LLM tertentu.
-    """
-    # 1. Hapus tanda '+' yang menempel di awal kata/kalimat (misal: '+Diberikan' -> 'Diberikan')
-    code = re.sub(r"(?<=[\s\\\[\]\(\)\{\}])\+(?=\w)", "", code)
-    code = re.sub(r"^\s*\+", "", code, flags=re.MULTILINE)
-
-    # 2. Hapus tanda '+' di akhir baris (misal: '9+ \\' atau 'lokal.+' -> '9 \\' atau 'lokal.')
-    code = re.sub(r"\+\s*(\\\\|\n|$)", r"\1", code)
-
-    # 3. Ubah tanda '+' terisolasi di antara kata teks biasa menjadi spasi
-    # (misal: 'maksimum+lokal' -> 'maksimum lokal')
-    code = re.sub(r"([a-zA-Z0-9.,])\+([a-zA-Z0-9.,])", r"\1 \2", code)
-
-    return code
 
 
 def generate_quicklatex_url(latex_code: str) -> str:
@@ -50,11 +33,9 @@ def generate_quicklatex_url(latex_code: str) -> str:
     """
     url = "https://quicklatex.com/latex3.f"
 
-    # Bersihkan kode LaTeX dari tanda '+' liar sebelum dikirim ke QuickLaTeX
-    cleaned_code = clean_latex_string(latex_code)
-
+    # Payload dikirimkan ke QuickLaTeX
     payload = {
-        "formula": cleaned_code,
+        "formula": latex_code,
         "fsize": "17px",
         "fcolor": "000000",
         "mode": "0",
@@ -73,6 +54,7 @@ def generate_quicklatex_url(latex_code: str) -> str:
     if res.status_code == 200:
         lines = res.text.strip().splitlines()
         if len(lines) >= 2 and lines[0].strip() == "0":
+            # Ambil URL murni sebelum spasi
             raw_url = lines[1].strip().split()[0]
             return raw_url
 
@@ -132,6 +114,7 @@ def kirim_gambar_telegram(image_url: str, caption: str, has_spoiler: bool = Fals
 if __name__ == "__main__":
     print("1. Membuat soal matematika menggunakan Groq (openai/gpt-oss-120b)...")
     data = buat_soal()
+    print(data)
 
     print("2. Render Soal ke QuickLaTeX...")
     url_soal = generate_quicklatex_url(data["soal_latex"])
