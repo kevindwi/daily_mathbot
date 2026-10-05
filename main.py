@@ -69,8 +69,12 @@ def buat_soal() -> dict:
                 "content": "Buatkan 1 soal matematika harian beserta pembahasannya.",
             },
         ],
-        response_format={"type": "json_object"},
-        temperature=0.6,
+        temperature=1,
+        max_completion_tokens=2048,
+        top_p=1,
+        reasoning_effort="medium",
+        stream=True,
+        stop=None,
     )
 
     return json.loads(completion.choices[0].message.content)
