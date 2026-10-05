@@ -4,19 +4,22 @@ import time
 import requests
 from google import genai
 from google.genai import types
-from google.genai.errors import APIError
+from groq import Groq
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
-# Daftar model utama dan cadangan jika model utama sibuk (503)
-AVAILABLE_MODELS = [
-    "gemini-3.8-flash",
-    "gemini-3.5-flash",
-    "gemini-3.6-flash",
-    "gemini-3.7-flash",
-]
+PROMPT = (
+    "Buatkan 1 soal matematika tingkat menengah (SMA/Sederajat) beserta pembahasannya. "
+    "Format output WAJIB persis seperti berikut:\n"
+    "📐 *SOAL MATEMATIKA HARIAN*\n\n"
+    "[Tuliskan isi soal di sini]\n\n"
+    "---------------\n"
+    "💡 *KUNCI JAWABAN & PEMBAHASAN*:\n"
+    "||[Tuliskan kunci jawaban dan langkah singkat di sini]||"
+)
 
 
 def escape_markdown_v2(text: str) -> str:
@@ -27,46 +30,67 @@ def escape_markdown_v2(text: str) -> str:
     return text
 
 
-def buat_soal() -> str:
-    prompt = (
-        "Buatkan 1 soal matematika tingkat menengah (SMA/Sederajat) beserta pembahasannya. "
-        "Format output WAJIB persis seperti berikut:\n"
-        "📐 *SOAL MATEMATIKA HARIAN*\n\n"
-        "[Tuliskan isi soal di sini]\n\n"
-        "---------------\n"
-        "💡 *KUNCI JAWABAN & PEMBAHASAN*:\n"
-        "||[Tuliskan kunci jawaban dan langkah singkat di sini]||"
-    )
+def generate_with_gemini() -> str:
+    """Mencoba membuat soal menggunakan Gemini API."""
+    if not GEMINI_API_KEY:
+        raise ValueError("GEMINI_API_KEY tidak ditemukan")
 
+    models = ["gemini-2.0-flash", "gemini-1.5-flash"]
     with genai.Client(api_key=GEMINI_API_KEY) as client:
         config = types.GenerateContentConfig(
             automatic_function_calling=types.AutomaticFunctionCallingConfig(
                 disable=True
             )
         )
+        for model in models:
+            try:
+                print(f"Mencoba Gemini ({model})...")
+                response = client.models.generate_content(
+                    model=model, contents=PROMPT, config=config
+                )
+                if response.text:
+                    return response.text
+            except Exception as e:
+                print(f"Gemini ({model}) gagal: {e}")
+    raise RuntimeError("Semua model Gemini gagal.")
 
-        # Mencoba setiap model yang ada di daftar jika terjadi error 503/server busy
-        for model_name in AVAILABLE_MODELS:
-            for attempt in range(2):  # Coba max 2x per model
-                try:
-                    print(f"Mencoba membuat soal dengan model: {model_name}...")
-                    response = client.models.generate_content(
-                        model=model_name,
-                        contents=prompt,
-                        config=config,
-                    )
-                    if response.text:
-                        return response.text
-                except APIError as e:
-                    print(f"Gagal pada {model_name} (Percobaan {attempt + 1}): {e}")
-                    time.sleep(3)  # Tunggu 3 detik sebelum coba lagi
-                except Exception as e:
-                    print(f"Error tidak terduga pada {model_name}: {e}")
-                    break
 
-    raise Exception(
-        "Semua model Gemini sedang tidak tersedia atau mengalami high demand."
+def generate_with_groq() -> str:
+    """Mencoba membuat soal menggunakan Groq API (Fallback Gratis)."""
+    if not GROQ_API_KEY:
+        raise ValueError("GROQ_API_KEY tidak ditemukan")
+
+    print("Mencoba Groq API (Llama 3.3 70B)...")
+    client = Groq(api_key=GROQ_API_KEY)
+
+    completion = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[
+            {
+                "role": "system",
+                "content": "Anda adalah pembuat soal matematika profesional.",
+            },
+            {"role": "user", "content": PROMPT},
+        ],
+        temperature=0.7,
     )
+    return completion.choices[0].message.content
+
+
+def buat_soal() -> str:
+    # # 1. Coba Gemini dulu
+    # try:
+    #     return generate_with_gemini()
+    # except Exception as e:
+    #     print(f"Beralih ke Groq karena Gemini error: {e}")
+
+    # 2. Fallback ke Groq jika Gemini gagal
+    try:
+        return generate_with_groq()
+    except Exception as e:
+        print(f"Groq juga gagal: {e}")
+
+    raise Exception("Gagal membuat soal dari seluruh provider (Gemini & Groq).")
 
 
 def kirim_notifikasi(pesan: str):
@@ -90,4 +114,4 @@ def kirim_notifikasi(pesan: str):
 if __name__ == "__main__":
     soal = buat_soal()
     kirim_notifikasi(soal)
-    print("Berhasil membuat dan mengirim soal ke Telegram!")
+    print("Berhasil mengirim soal ke Telegram!")
