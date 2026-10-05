@@ -34,7 +34,7 @@ def buat_soal() -> str:
     # Membuka client menggunakan Context Manager sesuai dokumentasi
     with genai.Client(api_key=GEMINI_API_KEY) as client:
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model="gemini-3.8-flash",
             contents=prompt,
         )
         return response.text
