@@ -9,21 +9,8 @@ GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
-SYSTEM_PROMPT = r"""Anda adalah pakar pembuat soal matematika.
-Tugas Anda adalah membuat 1 soal matematika SMA beserta pembahasannya dalam format JSON.
-
-ATURAN FORMULASI LATEX QUICKLATEX (SANGAT PENTING):
-1. JANGAN gunakan tanda '+' untuk menggantikan spasi. Gunakan spasi biasa.
-2. Gunakan perintah \text{...} HANYA untuk kata/kalimat penjelas.
-3. Untuk soal atau pembahasan berupa poin-poin/persamaan bertingkat, gunakan format lingkungan \begin{align*} ... \end{align*}.
-4. Gunakan \\ untuk ganti baris di dalam align*.
-5. JANGAN gunakan emoji atau karakter Markdown Telegram (*, _, ||) di dalam kode LaTeX.
-
-Contoh Output JSON yang BENAR:
-{
-  "soal_latex": "\\textbf{Soal:}\\\\[1ex]\nDiberikan fungsi kuadrat $f(x) = ax^2 + bx + c$ dengan akar-akar real $r_1$ dan $r_2$.\nJika $r_1 + r_2 = 5$, $r_1 r_2 = 6$, dan nilai minimum $f(x)$ adalah $-1$,\ntentukan nilai koefisien $a, b,$ dan $c$!",
-  "pembahasan_latex": "\\textbf{Pembahasan:}\\\\[1.5ex]\n\\begin{align*}\nf(x) &= a(x - r_1)(x - r_2) \\\\[1ex]\n&= a[x^2 - (r_1 + r_2)x + r_1 r_2] \\\\[1ex]\n&= a(x^2 - 5x + 6) \\\\[2ex]\n\\text{Sumbu simetri } x_0 &= -\\frac{b}{2a} = \\frac{5}{2} \\\\[1.5ex]\n\\text{Nilai minimum } f\\left(\\frac{5}{2}\\right) &= -1 \\\\[1ex]\na\\left[\\left(\\frac{5}{2}\\right)^2 - 5\\left(\\frac{5}{2}\\right) + 6\\right] &= -1 \\\\[1ex]\na\\left(-\\frac{1}{4}\\right) &= -1 \\implies a = 4 \\\\[2ex]\n\\text{Maka: } b &= -5a = -20 \\\\[1ex]\nc &= 6a = 24 \\\\[2ex]\n\\mathbf{\\text{Jawaban: }} a &= 4,\\; b = -20,\\; c = 24\n\\end{align*}"
-}
+SYSTEM_PROMPT = r"""Anda adalah pakar pembuat soal matematika SMA.
+Tugasmu adalah membuat soal matematika beserta pembahasannya dalam format JSON valid.\n\nAturan Format JSON:\n1. Output HARUS berupa JSON valid dengan struktur: {\"soal_latex\": \"...\", \"pembahasan_latex\": \"...\"}.\n2. Jangan tambahkan teks pembuka atau penutup di luar JSON.\n\nAturan Penulisan LaTeX (QuickLaTeX Compatible):\n1. Setiap nilai/field JSON (`soal_latex` dan `pembahasan_latex`) HARUS ditulis dalam SATU BARIS UTUH (tanpa newlines/break lines nyata di dalam string JSON).\n2. Gunakan `\\[10pt]` untuk membuat jarak antar baris tampilan hasil render.\n3. Teks biasa di dalam math mode harus dibungkus dengan `\\text{...}`.\n4. Escape karakter khusus seperti `&` menjadi `\\&`.\n5. Gunakan `\\boxed{...}` untuk memperjelas jawaban akhir.
 """
 
 
