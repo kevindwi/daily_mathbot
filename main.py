@@ -1,14 +1,16 @@
 import os
-import google.generativeai as genai
-import requests
 
-# Konfigurasi API dari Environment Variable
+import requests
+from google import genai
+
+# Konfigurasi Environment Variables
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
-genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel("gemini-1.5-flash")
+# Inisialisasi Client SDK Baru
+client = genai.Client(api_key=GEMINI_API_KEY)
+
 
 def buat_soal():
     prompt = (
@@ -20,17 +22,19 @@ def buat_soal():
         "💡 *KUNCI JAWABAN & PEMBAHASAN* (Disembunyikan):\n"
         "||[Kunci Jawaban Singkat & Pembahasan Ringkas]||"
     )
-    response = model.generate_content(prompt)
+    # Menggunakan model gemini-2.5-flash terbaru
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=prompt,
+    )
     return response.text
+
 
 def kirim_notifikasi(pesan):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    payload = {
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": pesan,
-        "parse_mode": "Markdown"
-    }
+    payload = {"chat_id": TELEGRAM_CHAT_ID, "text": pesan, "parse_mode": "Markdown"}
     requests.post(url, json=payload)
+
 
 if __name__ == "__main__":
     soal = buat_soal()
