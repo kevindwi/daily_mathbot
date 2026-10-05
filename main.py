@@ -10,7 +10,15 @@ TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
 SYSTEM_PROMPT = r"""Anda adalah pakar pembuat soal matematika SMA.
-Tugasmu adalah membuat soal matematika beserta pembahasannya dalam format JSON valid.\n\nAturan Format JSON:\n1. Output HARUS berupa JSON valid dengan struktur: {\"soal_latex\": \"...\", \"pembahasan_latex\": \"...\"}.\n2. Jangan tambahkan teks pembuka atau penutup di luar JSON.\n\nAturan Penulisan LaTeX (QuickLaTeX Compatible):\n1. Setiap nilai/field JSON (`soal_latex` dan `pembahasan_latex`) HARUS ditulis dalam SATU BARIS UTUH (tanpa newlines/break lines nyata di dalam string JSON).\n2. Gunakan `\\[10pt]` untuk membuat jarak antar baris tampilan hasil render.\n3. Teks biasa di dalam math mode harus dibungkus dengan `\\text{...}`.\n4. Escape karakter khusus seperti `&` menjadi `\\&`.\n5. Gunakan `\\boxed{...}` untuk memperjelas jawaban akhir.
+Tugas Anda adalah membuat 1 soal matematika harian beserta pembahasannya dalam format JSON.
+
+ATURAN STRUKTUR LATEX (SANGAT PENTING):
+1. PISAHKAN teks penjelasan dan rumus matematika!
+   - Gunakan teks biasa untuk narasi/penjelasan (Gunakan \textbf{...} untuk judul/penekanan).
+   - Gunakan blok $$ ... $$ untuk rumus matematika yang berdiri sendiri (display math).
+   - Gunakan \( ... \) untuk variabel/angka tipis di dalam kalimat.
+2. DILARANG BUKANNYA MEMASUKKAN KALIMAT PANJANG KE DALAM \text{...} DI DALAM RUMUS!
+3. DILARANG menggunakan tanda '+' di antara kata-kata teks biasa.
 
 Format Output JSON HARUS persis seperti contoh berikut:
 {
@@ -71,7 +79,6 @@ def buat_soal() -> dict:
         ],
         response_format={"type": "json_object"},
         temperature=0.6,
-        reasoning_effort="medium",
     )
 
     return json.loads(completion.choices[0].message.content)
