@@ -26,43 +26,37 @@ Format Output HARUS dalam format JSON murni persis seperti berikut:
 
 def generate_quicklatex_image_url(latex_code: str) -> str:
     """
-    Mengirimkan kode LaTeX ke QuickLaTeX API dan mengembalikan URL gambar PNG.
+    Mengirimkan teks LaTeX ke QuickLaTeX API dan mengembalikan URL gambar PNG bersih.
     """
     url = "https://quicklatex.com/latex3.f"
 
-    # Menambahkan konfigurasi QuickLaTeX (fontsize 18px, warna teks gelap, resolusi tinggi)
-    full_latex = (
-        r"\documentclass{article}"
-        "\n"
-        r"\usepackage{amsmath,amsfonts,amssymb}"
-        "\n"
-        r"\begin{document}"
-        "\n"
-        r"\thispagestyle{empty}"
-        "\n"
-        f"{latex_code}"
-        "\n"
-        r"\end{document}"
-    )
+    headers = {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
+    }
 
     payload = {
-        "formula": full_latex,
+        "formula": latex_code,
         "fsize": "18px",
         "fcolor": "000000",
         "mode": "0",
         "out": "1",
-        "removespaces": "1",
+        "remhost": "quicklatex.com",
+        "preamble": "\\usepackage{amsmath}\n\\usepackage{amsfonts}\n\\usepackage{amssymb}",
     }
 
-    # API QuickLaTeX membutuhkan format x-www-form-urlencoded
-    response = requests.post(url, data=payload)
-    if response.status_code == 200:
-        # Response QuickLaTeX mengembalikan teks: "0\n<image_url>\n<width>\n<height>"
-        lines = response.text.splitlines()
-        if len(lines) >= 2 and lines[0] == "0":
-            return lines[1].strip()
+    res = requests.post(url, data=payload, headers=headers)
 
-    raise RuntimeError(f"Gagal generate QuickLaTeX: {response.text}")
+    if res.status_code == 200:
+        lines = res.text.strip().splitlines()
+        if len(lines) >= 2 and lines[0].strip() == "0":
+            # Baris ke-2 biasanya berisi: "https://...png 0 632 96"
+            # Kita split berdasarkan spasi dan ambil bagian pertamanya saja (URL asli)
+            raw_url_line = lines[1].strip()
+            clean_url = raw_url_line.split()[0]
+            return clean_url
+
+    raise RuntimeError(f"Gagal generate QuickLaTeX: {res.text}")
 
 
 def buat_soal() -> dict:
