@@ -91,22 +91,37 @@ def buat_soal() -> dict:
 
 def kirim_gambar_telegram(image_url: str, caption: str, has_spoiler: bool = False):
     """
-    Mengirimkan URL gambar ke Telegram.
-    Jika has_spoiler=True, gambarnya otomatis diburamkan oleh Telegram.
+    Mengunduh gambar dari QuickLaTeX lalu mengunggah file-nya langsung ke Telegram.
+    Metode ini mencegah error 'failed to get HTTP URL content'.
     """
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto"
+    # 1. Unduh gambar dari QuickLaTeX ke memory/file sementara
+    img_res = requests.get(image_url, headers={"User-Agent": "Mozilla/5.0"})
 
-    payload = {
+    if img_res.status_code != 200:
+        print(f"Gagal mendownload gambar dari QuickLaTeX URL: {image_url}")
+        return
+
+    # 2. Kirim file gambar secara langsung ke API Telegram
+    telegram_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto"
+
+    data_payload = {
         "chat_id": TELEGRAM_CHAT_ID,
-        "photo": image_url,
         "caption": caption,
         "parse_mode": "Markdown",
-        "has_spoiler": has_spoiler,  # Menyembunyikan gambar dengan efek buram/spoiler
+        "has_spoiler": str(
+            has_spoiler
+        ).lower(),  # Telegram menerima boolean dalam format 'true'/'false'
     }
 
-    res = requests.post(url, data=payload)
+    # Upload sebagai bytes stream
+    files_payload = {"photo": ("formula.png", img_res.content, "image/png")}
+
+    res = requests.post(telegram_url, data=data_payload, files=files_payload)
+
     if not res.ok:
         print(f"Gagal mengirim foto ke Telegram: {res.text}")
+    else:
+        print(f"Berhasil terkirim!")
 
 
 if __name__ == "__main__":
