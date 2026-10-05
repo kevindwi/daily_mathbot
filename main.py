@@ -28,7 +28,7 @@ def generate_quicklatex_image_url(latex_code: str) -> str:
     """
     Mengirimkan kode LaTeX ke QuickLaTeX API dan mengembalikan URL gambar PNG.
     """
-    url = "https://quicklatex.com/latex3.im"
+    url = "https://quicklatex.com/latex3.f"
 
     # Menambahkan konfigurasi QuickLaTeX (fontsize 18px, warna teks gelap, resolusi tinggi)
     full_latex = (
