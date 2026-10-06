@@ -1,5 +1,6 @@
 import json
 import os
+from urllib.parse import quote
 
 import requests
 from groq import Groq
@@ -9,53 +10,52 @@ GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
-SYSTEM_PROMPT = r"""Anda adalah pakar pembuat soal matematika SMA.
+SYSTEM_PROMPT = r"""
+Anda adalah pakar pembuat soal matematika SMA.
 Tugas Anda adalah membuat 1 soal matematika harian beserta pembahasannya dalam format JSON.
 
-ATURAN STRUKTUR LATEX (SANGAT PENTING):
-1. PISAHKAN teks penjelasan dan rumus matematika!
-   - Gunakan teks biasa untuk narasi/penjelasan (Gunakan \textbf{...} untuk judul/penekanan).
-   - Gunakan blok $$ ... $$ untuk rumus matematika yang berdiri sendiri (display math).
-   - Gunakan \( ... \) untuk variabel/angka tipis di dalam kalimat.
-2. DILARANG BUKANNYA MEMASUKKAN KALIMAT PANJANG KE DALAM \text{...} DI DALAM RUMUS!
-3. DILARANG menggunakan tanda '+' di antara kata-kata teks biasa.
+ATURAN LATEX UNTUK QUICKLATEX:
+1. Anda BOLEH menggunakan $$ ... $$ atau \[ ... \] untuk rumus matematika terpisah (display math).
+2. DILARANG meletakkan \\[10pt] di dalam atau tepat di samping $$ ... $$. Gunakan baris baru biasa di dalam string JSON jika menggunakan $$.
+3. Teks narasi di luar $$ harus dibungkus dengan \text{...} atau \textbf{...} jika bercampur dengan baris LaTeX lainnya.
+4. Karakter ampersand HARUS di-escape menjadi \&.
 
-Format Output JSON HARUS persis seperti contoh berikut:
+Format Output JSON:
 {
-  "soal_latex": "\textbf{SOAL MATEMATIKA HARIAN} \\[10pt] \text{Hitung nilai integral tentu berikut:} \\[10pt] \int_{1}^{3} (2x^2-4x+3)\,dx",
-  "pembahasan_latex": "\textbf{KUNCI JAWABAN \& PEMBAHASAN} \\[10pt] \int (2x^2-4x+3)\,dx = \frac{2}{3}x^3-2x^2+3x \\[10pt] \text{Substitusikan batas } 1 \text{ dan } 3: \\[10pt] \left[\frac{2}{3}x^3-2x^2+3x\right]_1^3 \\[10pt] \text{Untuk } x=3: \\[10pt] \frac{2}{3}(27)-2(9)+3(3)=9 \\[10pt] \text{Untuk } x=1: \\[10pt] \frac{2}{3}-2+3=\frac{5}{3} \\[10pt] \text{Maka:} \\[10pt] 9-\frac{5}{3}=\frac{22}{3} \\[10pt] \textbf{Jawaban: } \boxed{\frac{22}{3}}"
+  "soal_latex": "\\textbf{SOAL MATEMATIKA HARIAN} \\\\[10pt] \\text{Hitung nilai integral tentu berikut:} \\\\[10pt] \\int_{1}^{3} (2x^2-4x+3)\\,dx",
+  "pembahasan_latex": "\\textbf{KUNCI JAWABAN \\& PEMBAHASAN} \\\\[10pt] \\text{Turunan pertama:} $$f'(x) = -4x + 8$$ \\text{Set } f'(x) = 0 \\text{ untuk titik kritis:} $$-4x + 8 = 0 \\Rightarrow x = 2$$ \\text{Hitung } f(2): $$f(2) = 13$$ \\textbf{Jawaban: } \\boxed{13}"
 }
 """
 
 
 def generate_quicklatex_url(latex_code: str) -> str:
-    """
-    Mengirimkan teks LaTeX ke QuickLaTeX API dan mengembalikan URL gambar PNG bersih.
-    """
     url = "https://quicklatex.com/latex3.f"
 
-    # Payload dikirimkan ke QuickLaTeX
-    payload = {
-        "formula": latex_code,
-        "fsize": "17px",
-        "fcolor": "000000",
-        "mode": "0",
-        "out": "1",
-        "remhost": "quicklatex.com",
-        "preamble": r"""\usepackage{amsmath}
-\usepackage{amsfonts}
-\usepackage{amssymb}
-\usepackage[indonesian]{babel}""",
+    # Encoding aman untuk LaTeX dan Preamble
+    encoded_formula = quote(latex_code)
+    preamble = quote(
+        r"\usepackage{amsmath}\n\usepackage{amsfonts}\n\usepackage{amssymb}"
+    )
+
+    body_raw = (
+        f"formula={encoded_formula}"
+        f"&fsize=17px&fcolor=000000&mode=0&out=1&remhost=quicklatex.com"
+        f"&preamble={preamble}&rnd=81.72740052257099"
+    )
+
+    headers = {
+        "Accept": "*/*",
+        "Accept-Language": "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Content-Type": "application/x-www-form-urlencoded",
+        "X-Requested-With": "XMLHttpRequest",
+        "Referer": "https://quicklatex.com/",
     }
 
-    headers = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"}
-
-    res = requests.post(url, data=payload, headers=headers)
+    res = requests.post(url, data=body_raw, headers=headers)
 
     if res.status_code == 200:
         lines = res.text.strip().splitlines()
         if len(lines) >= 2 and lines[0].strip() == "0":
-            # Ambil URL murni sebelum spasi
             raw_url = lines[1].strip().split()[0]
             return raw_url
 
@@ -115,7 +115,8 @@ def kirim_gambar_telegram(image_url: str, caption: str, has_spoiler: bool = Fals
 if __name__ == "__main__":
     print("1. Membuat soal matematika menggunakan Groq (openai/gpt-oss-120b)...")
     data = buat_soal()
-    print(data)
+    print(data["soal_latex"])
+    print(data["pembahasan_latex"])
 
     print("2. Render Soal ke QuickLaTeX...")
     url_soal = generate_quicklatex_url(data["soal_latex"])

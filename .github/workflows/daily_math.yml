@@ -2,7 +2,8 @@ name: Send Daily Math Question
 
 on:
   schedule:
-    - cron: "0 0 * * *" # Berjalan otomatis tiap jam 07:00 WIB
+    # Mengubah 00:00 UTC (07:00 WIB) menjadi 00:17 UTC (07:17 WIB)
+    - cron: "17 0 * * *"
   workflow_dispatch:
 
 jobs:
